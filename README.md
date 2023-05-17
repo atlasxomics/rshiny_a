@@ -1,1 +1,1 @@
-# Your workflow description here (useful if putting into version control system like git + GitHub or GitLab)
+Latch workflow for converting ArchRProjects into input for AtlasXomics RShiny app; first of two (A,B).
