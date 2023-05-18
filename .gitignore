@@ -1,5 +1,6 @@
 # dev stuff
 scripts/craft-test_ArchRProject/
+scripts/ArchRLogs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
