@@ -1,6 +1,9 @@
 # dev stuff
 scripts/craft-test_ArchRProject/
 scripts/ArchRLogs/
+.logs/
+.latch_report.tar.gz
+config
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
