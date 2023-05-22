@@ -16,47 +16,34 @@ library("seqLogo")
 library("qdap")
 
 
-setwd('~/fastq/archr/')
+setwd('~/latch/rshiny_a/scripts/')
 
 proj3 <- loadArchRProject(path = "./craft-test_ArchRProject/")
 
-proj3 <- addIterativeLSI(
+proj3 <- addHarmony(
   ArchRProj = proj3,
-  useMatrix = 'TileMatrix',
-  name = 'IterativeLSI',
-  iterations = 2, 
-  clusterParams = list(
-    resolution = c(1), 
-    sampleCells = 10000, 
-    n.start = 10
-  ), 
-  varFeatures = 25000, 
-  dimsToUse = 1:30,
+  reducedDims = "IterativeLSI",
+  name = "Harmony",
+  groupBy = "Sample",
   force = TRUE
 )
 
-proj3 <- addHarmony(      # What if only one sample
-  ArchRProj = proj3,      
-  reducedDims = "IterativeLSI",     
-  name = "Harmony",     
-  groupBy = "Sample",     
-  force = TRUE      
-)     
-
 proj3 <- addClusters(
   input = proj3,
-  method = 'Seurat',
-  name = 'Clusters',
+  reducedDims = "Harmony",
+  method = "Seurat",
+  name = "Clusters",
   resolution = c(1), 
   force = TRUE
 )
 
 proj3 <- addUMAP(
-  ArchRProj = proj3, 
-  name = 'UMAP', 
+  ArchRProj = proj3,
+  reducedDims = "Harmony",
+  name = "UMAP", 
   nNeighbors = 30, 
   minDist = 0.0,  
-  metric = 'cosine',
+  metric = "cosine",
   force = TRUE
 )
 
@@ -67,7 +54,7 @@ markersGS_clusters <- getMarkerFeatures( # what if only one cluster? error?
   useMatrix = "GeneScoreMatrix",
   groupBy = "Clusters",
   bias = c("TSSEnrichment", "log10(nFrags)"),
-  testMethod = "ttest",
+  testMethod = "ttest"
 )
 
 heatmapGS_cluster <- plotMarkerHeatmap(
@@ -91,7 +78,7 @@ markersGS_samples <- getMarkerFeatures(
   testMethod = "ttest",
 )
 
-proj3 <- addImputeWeights(proj3, reducedDims= "Harmony") # why for samples?
+proj3 <- addImputeWeights(proj3, reducedDims= "Harmony")
 
 heatmapGS_samples <- plotMarkerHeatmap(
   seMarker = markersGS_samples, 
@@ -114,29 +101,20 @@ markersGS_condition <- getMarkerFeatures(
   testMethod = "ttest",
 )
 
-# how to handle 1 condition??
-if (length(unique(proj3@cellColData@listData[["Condition"]])) > 1) {
-  heatmapGS_condition <- plotMarkerHeatmap(
-      seMarker = markersGS_condition, 
-      cutOff = "FDR <= 0.05 & Log2FC >= 0.20",
-      plotLog2FC = TRUE,
-      transpose = F,
-      returnMatrix = TRUE)
-} else {                                  
-  heatmapGS_condition <- plotMarkerHeatmap(                        
-    seMarker = markersGS_condition,                         
-    cutOff = "FDR <= 1 & Log2FC >= 0",                        
-    plotLog2FC = TRUE,                        
-    transpose = F,                        
-    returnMatrix = TRUE)                        
-}
+heatmapGS_condition <- plotMarkerHeatmap(
+    seMarker = markersGS_condition, 
+    cutOff = "FDR <= 0.05 & Log2FC >= 0.20",
+    plotLog2FC = TRUE,
+    transpose = F,
+    returnMatrix = TRUE
+)
 
 saveRDS(markersGS_condition,"shiny2/markersGS_condition.rds")
 write.csv(heatmapGS_condition,"shiny2/genes_per_condition_hm.csv")
 
 # volcano plots ----------------------------------------------------------------
 
-# if condition -= 1 ????
+req_DF <- as.data.frame(getCellColData(proj3))
 ncells <- length(proj3$cellNames)
 markerList <- getMarkerFeatures(
   ArchRProj = proj3,
@@ -147,11 +125,24 @@ markerList <- getMarkerFeatures(
   normBy = "none",
   testMethod = "ttest")
 
+# remove clusters with 
+distr_df <- table(req_DF$Clusters, req_DF$Condition)
+distr <- as.data.frame.matrix(round(prop.table(as.matrix(distr_df),1),2))
+
+lst <- list()
+for(i in 1:nrow(distr)) {
+  row <- distr[i,]
+  if (
+    sum(unname(unlist(row))>= 0.85) == 1) {
+    rownames(row) -> lst[[i]]
+  }
+}
+not_req_list <- unlist(lst)
+
 req_clusters <- unique(proj3$Clusters)
 req_clusters <- req_clusters[order(as.numeric(gsub("C","",req_clusters)))]
 
-req_clusters <- req_clusters[-c(3, 5, 7, 8, 13)] # how to handle this better?
-                                                 # will need trycatch 
+req_clusters <- req_clusters[which(!req_clusters%in%not_req_list)]
 
 # marker genes by condition ----------------------------------------------------
 
@@ -168,7 +159,6 @@ for (i in seq_along(req_clusters)) {
   ncells[i] <- length(proj3_C[[i]]$cellNames)
   
   # this needs to be in a trycatch                #
-  # per each cluster separately                   #                              
   markerList_C[[i]] <- getMarkerFeatures(         #                                        
     ArchRProj = proj3_C[[i]],                     #                            
     useMatrix = "GeneScoreMatrix",                #                                  
@@ -196,19 +186,16 @@ markerList_df <- cbind(markerList_df1, markerList_df2, markerList_df3)
 markerList_df$genes<- rowData(markerList)$name
 markerList_df$cluster <- rep("All",length(rownames(markerList_df)))
 
-# this needs to be better--how do you do both conditions?  #                                                   
-markerList_df <- markerList_df[,c(1,3,5,7,8)]              #                                       
-colnames(markerList_df) <- c(                              #                       
-  "avg_log2FC",                                            #         
-  "p_val",                                                 #     
-  "p_val_adj",                                             #         
-  "gene",                                                  #   
-  "cluster"                                                #     
+
+markerList_df <- markerList_df[,c(1,3,5,7,8)]                                  
+colnames(markerList_df) <- c(                                   
+  "avg_log2FC",                                   
+  "p_val",                                    
+  "p_val_adj",                                    
+  "gene",                                   
+  "cluster"                                   
 )  
 
-# it happens alot that fdr values are similar. for those cases we only keep fdrs with highest logfc
-# markerList_df$logfdr <- -log10(markerList_df$p_val_adj)
-# markerList_df <- setDT(markerList_df)[order(-abs(avg_log2FC)), .SD[1L] ,.(logfdr)]
 markerList_df
 
 # volcano data Conditions ------------------------------------------------------
@@ -220,7 +207,7 @@ markerList_df_C  <- list()
 
 for (i in seq_along(req_clusters)){
   
-  cluster <- paste0("C", i)
+  cluster <- req_clusters[i]
   
   markerList_df1_C[[i]] <- assay(markerList_C[[i]], "Log2FC")
   markerList_df2_C[[i]] <- assay(markerList_C[[i]], "Pval")
@@ -228,23 +215,22 @@ for (i in seq_along(req_clusters)){
   markerList_df_C[[i]] <- cbind(
     markerList_df1_C[[i]],
     markerList_df2_C[[i]],
-    markerList_df3_C[[i]])
+    markerList_df3_C[[i]]
+)
   markerList_df_C[[i]]$genes<- rowData(markerList_C[[i]])$name
   markerList_df_C[[i]]$cluster <- rep(cluster, 
                                       length(rownames(markerList_df_C[[i]])))
     
-  # # we only want to see results of one set , say just sham
-  ## ^ again how can we know ahead of time???
-  if (length(names(markerList_df_C[[i]])) == 8) {
-    markerList_df_C[[i]] <- markerList_df_C[[i]][,c(1,3,5,7,8)]
-  }
+  # What if conditions == 3??
+  markerList_df_C[[i]] <- markerList_df_C[[i]][,c(1,3,5,7,8)]
   
-    colnames(markerList_df_C[[i]]) <- c(
-      "avg_log2FC",
-      "p_val",
-      "p_val_adj",
-      "gene",
-      "cluster")
+  colnames(markerList_df_C[[i]]) <- c(
+    "avg_log2FC",
+    "p_val",
+    "p_val_adj",
+    "gene",
+    "cluster"
+  )
 }
 names(markerList_df_C) <- req_clusters
 
@@ -255,16 +241,22 @@ markersGS_merged_df <- do.call("rbind", markerList_df_C)
 markersGS_merged_df <- rbind(markerList_df, markersGS_merged_df)
 
 # remove empty genes
-markersGS_merged_df <- markersGS_merged_df[which(!markersGS_merged_df$gene%in%empty_gene),]
+markersGS_merged_df <- markersGS_merged_df[
+  which(!markersGS_merged_df$gene%in%empty_gene),
+]
 
 # remove na values
 markersGS_merged_df <- na.omit(markersGS_merged_df)
 
 # remove FDR equal to 0
-markersGS_merged_df <- markersGS_merged_df[which(!markersGS_merged_df$p_val_adj== 0),]
+markersGS_merged_df <- markersGS_merged_df[
+  which(!markersGS_merged_df$p_val_adj == 0),
+]
 
 # make logfc limiation between 1 and -1
-markersGS_merged_df <- markersGS_merged_df[which(abs(markersGS_merged_df$avg_log2FC)< 1.2),]
+markersGS_merged_df <- markersGS_merged_df[
+  which(abs(markersGS_merged_df$avg_log2FC)< 1.2),
+]
 
 markersGS_merged_df$Significance = ifelse(
   markersGS_merged_df$p_val_adj < 10^-1 ,
@@ -274,10 +266,8 @@ markersGS_merged_df$Significance = ifelse(
     colnames(markerList)[2]),
   'Not siginficant'
 )
-markersGS_merged_df
 
 de <- markersGS_merged_df
-table(de$Significance)
 write.table(
   de,
   "shiny2/inpMarkers.txt",
@@ -285,13 +275,13 @@ write.table(
   quote = F,
   row.names = F
 )
-inpMarkers = fread("shiny2//inpMarkers.txt") # why read again
+inpMarkers = fread("shiny2/inpMarkers.txt")
 
 # plot volcano -----------------------------------------------------------------
 
-targeted <- 'C2'
+targeted <- 'C4'
 
-minfdr = 10^-(1/3 *(-log10(min(inpMarkers[cluster == targeted]$p_val_adj))))
+minfdr = minfdr = 0.05
 minfdr2 = 10^-(2/3 *(-log10(min(inpMarkers[cluster == targeted]$p_val_adj))))
 
 # How to correctly assign conditions?                                      # 
@@ -420,3 +410,25 @@ req_genes3<- req_genes3[!duplicated(req_genes3)]
 
 write.csv(req_genes3,"shiny2/req_genes3.csv")
 
+
+# pal <- paletteDiscrete(values = getCellColData(proj3)$Condition)
+# 
+# options(repr.plot.width=12, repr.plot.height=7)
+# 
+# req_DF <- as.data.frame(getCellColData(proj3))
+# 
+# req_table <- melt(table(req_DF$Clusters, req_DF$Condition))
+# colnames(req_table) <- c("Cluster","Treatment","%cells in knn clusters")
+# req_table$Cluster <- factor(
+#   req_table$Cluster,
+#   levels = (
+#     unique(
+#       req_table[order(as.numeric(gsub("C","",req_table$Cluster))),]$Cluster)
+#     )
+#   )
+# 
+# ggplot(req_table, aes(fill=Treatment, y=`%cells in knn clusters`, x= Cluster)) +
+#   geom_bar(stat="identity", position = "fill") +
+#   theme_classic() +
+#   theme(text = element_text(size = 25)) +theme(axis.title.x=element_blank(),) +
+#   scale_fill_manual(values= (pal))
