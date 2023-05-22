@@ -3,24 +3,20 @@ library("BSgenome")
 library("BSgenome.Hsapiens.UCSC.hg38")
 library("BSgenome.Mmusculus.UCSC.mm10")
 library("BSgenome.Rnorvegicus.UCSC.rn6")
-library("chromVARmotifs")
 library("data.table")
 library("dplyr")
 library("GenomicRanges")
 library("plyr")
 library("readr")  
 library("Seurat")
-library("seqLogo")
 
 # globals ---------------------------------------------------------------------
 
 args <- commandArgs(trailingOnly = TRUE)
 
 archrproject <- args[1]
-genome_size <- as.double(args[2])
 
 proj <- loadArchRProject(path = archrproject)
-
 
 # clusters gsm -----------------------------------------------------------------
 
@@ -253,38 +249,6 @@ UMAPHarmony <-getEmbedding(
 
 write.csv(UMAPHarmony,"/root/outs/UMAPHarmony.csv")
 
-# motifs -----------------------------------------------------------------------
-
-proj <- addGroupCoverages(ArchRProj = proj, groupBy = "Clusters")
-
-pathToMacs2 <- findMacs2()
-proj <- addReproduciblePeakSet(
-  ArchRProj = proj, 
-  groupBy = "Clusters", 
-  pathToMacs2 = pathToMacs2,
-  genomeSize = genome_size,
-  force = TRUE
-)
-
-proj <- addMotifAnnotations(
-  ArchRProj = proj,
-  motifSet = "cisbp",
-  name = "Motif",
-  force = TRUE
-)
-
-PWMs <- getPeakAnnotation(proj, "Motif")$motifs
-PWMatrixToProbMatrix <- function(x){
-  if (class(x) != "PWMatrix") stop("x must be a TFBSTools::PWMatrix object")
-  m <- (exp(as(x, "matrix"))) * TFBSTools::bg(x)/sum(TFBSTools::bg(x))
-  m <- t(t(m)/colSums(m))
-}
-
-ProbMatrices <- lapply(PWMs, PWMatrixToProbMatrix)
-lapply(ProbMatrices, colSums) %>% range
-
-saveRDS(ProbMatrices,"/root/outs/seqlogo.rds")
-        
 # heatmap genes by cluster -----------------------------------------------------
 
 hm_per_clust <- read.csv("/root/outs/genes_per_cluster_hm.csv")
