@@ -59,13 +59,11 @@ RUN R -e "BiocManager::install('BSgenome.Mmusculus.UCSC.mm10')"
 RUN R -e "BiocManager::install('BSgenome.Hsapiens.UCSC.hg38')"
 RUN R -e "BiocManager::install('BSgenome.Rnorvegicus.UCSC.rn6')"
 
-RUN python3 -m pip install MACS2
-
 # STOP HERE:
 # The following lines are needed to ensure your build environement works
 # correctly with latch.
-RUN echo "hi"
 RUN python3 -m pip install --upgrade latch
+RUN python3 -m pip install macs2==2.2.6
 COPY wf /root/wf
 ARG tag
 ENV FLYTE_INTERNAL_IMAGE $tag

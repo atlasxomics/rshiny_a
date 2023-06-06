@@ -257,7 +257,7 @@ write.csv(UMAPHarmony,"/root/outs/UMAPHarmony.csv")
 
 proj <- addGroupCoverages(ArchRProj = proj, groupBy = "Clusters")
 
-pathToMacs2 <- findMacs2()
+pathToMacs2 <- findMacs2() 
 proj <- addReproduciblePeakSet(
   ArchRProj = proj, 
   groupBy = "Clusters", 
@@ -272,6 +272,8 @@ proj <- addMotifAnnotations(
   name = "Motif",
   force = TRUE
 )
+
+saveArchRProject(ArchRProj = proj, outputDirectory = "/root/outs/archrproject")
 
 PWMs <- getPeakAnnotation(proj, "Motif")$motifs
 PWMatrixToProbMatrix <- function(x){
