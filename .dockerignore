@@ -9,3 +9,4 @@ Dockerfile
 .latch_report.tar.gz
 
 scripts/
+.logs/
