@@ -3,24 +3,20 @@ library("BSgenome")
 library("BSgenome.Hsapiens.UCSC.hg38")
 library("BSgenome.Mmusculus.UCSC.mm10")
 library("BSgenome.Rnorvegicus.UCSC.rn6")
-library("chromVARmotifs")
 library("data.table")
 library("dplyr")
 library("GenomicRanges")
 library("plyr")
 library("readr")  
 library("Seurat")
-library("seqLogo")
 
 # globals ---------------------------------------------------------------------
 
 args <- commandArgs(trailingOnly = TRUE)
 
 archrproject <- args[1]
-genome_size <- as.double(args[2])
 
 proj <- loadArchRProject(path = archrproject)
-
 
 # clusters gsm -----------------------------------------------------------------
 
