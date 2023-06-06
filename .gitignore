@@ -1,6 +1,7 @@
 # dev stuff
 scripts/craft-test_ArchRProject/
 scripts/ArchRLogs/
+scripts/archrproj/
 .logs/
 .latch_report.tar.gz
 config
